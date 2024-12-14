@@ -2,13 +2,13 @@ import os
 import streamlit as st
 import PyPDF2
 import textwrap
-from pymilvus import Milvus, DataType, connections
+from pymilvus import Milvus, DataType, connections, Collection, utility
 import openai
 
 # Secrets
 openai_api_key = st.secrets["OPENAI_API_KEY"]
-os.environ["ZILLIZ_CLOUD_URI"] = "https://in03-f2db10c5f456b31.serverless.gcp-us-west1.cloud.zilliz.com"
-os.environ["ZILLIZ_CLOUD_API_KEY"] = "98807cbae03002ff10c5a6f14d3959c6dfad9a01127f351cbd0701e45b62751522a9e8acb409eb6f4fbcf6417595000b4df67623"
+zilliz_cloud_uri = os.environ["ZILLIZ_CLOUD_URI"] = "https://in03-f2db10c5f456b31.serverless.gcp-us-west1.cloud.zilliz.com"
+zilliz_cloud_api_key = os.environ["ZILLIZ_CLOUD_API_KEY"] = "98807cbae03002ff10c5a6f14d3959c6dfad9a01127f351cbd0701e45b62751522a9e8acb409eb6f4fbcf6417595000b4df67623"
 
 # Initialize Milvus
 def initialize_milvus():
@@ -18,6 +18,7 @@ def initialize_milvus():
             uri=zilliz_cloud_uri,
             token=zilliz_cloud_api_key
         )
+        st.info("Successfully connected to Milvus.")
         return True
     except Exception as e:
         st.error(f"Failed to connect to Milvus: {e}")
@@ -28,10 +29,13 @@ def extract_text_from_uploaded_pdfs(uploaded_files):
     extracted_text = {}
     for uploaded_file in uploaded_files:
         text = ""
-        reader = PyPDF2.PdfReader(uploaded_file)
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
-        extracted_text[uploaded_file.name] = text
+        try:
+            reader = PyPDF2.PdfReader(uploaded_file)
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+            extracted_text[uploaded_file.name] = text
+        except Exception as e:
+            st.error(f"Failed to process {uploaded_file.name}: {e}")
     return extracted_text
 
 # Chunk text for embeddings
@@ -43,40 +47,69 @@ def generate_embeddings(text_chunks):
     openai.api_key = openai_api_key
     embeddings = []
     for chunk in text_chunks:
-        response = openai.Embedding.create(input=chunk, model="text-embedding-ada-002")
-        embeddings.append(response['data'][0]['embedding'])
+        try:
+            response = openai.Embedding.create(input=chunk, model="text-embedding-ada-002")
+            embeddings.append(response['data'][0]['embedding'])
+        except Exception as e:
+            st.error(f"Error generating embedding for chunk: {chunk[:50]}...: {e}")
     return embeddings
 
 # Store data in Milvus
 def store_in_milvus(collection_name, extracted_text):
-    client = Milvus()
-    if not client.has_collection(collection_name):
-        client.create_collection(collection_name, {
-            "fields": [
-                {"name": "id", "type": DataType.INT64, "is_primary": True},
-                {"name": "vector", "type": DataType.FLOAT_VECTOR, "dim": 1536},
-                {"name": "text", "type": DataType.VARCHAR, "max_length": 65535}
-            ]
-        })
-    data = []
-    id = 0
-    for file, text in extracted_text.items():
-        chunks = chunk_text(text)
-        embeddings = generate_embeddings(chunks)
-        for chunk, embedding in zip(chunks, embeddings):
-            data.append({"id": id, "vector": embedding, "text": chunk})
-            id += 1
-    client.insert(collection_name, data)
+    try:
+        if not utility.has_collection(collection_name):
+            schema = {
+                "fields": [
+                    {"name": "id", "type": DataType.INT64, "is_primary": True},
+                    {"name": "vector", "type": DataType.FLOAT_VECTOR, "dim": 1536},
+                    {"name": "text", "type": DataType.VARCHAR, "max_length": 65535}
+                ]
+            }
+            collection = Collection(name=collection_name, schema=schema)
+            st.info(f"Collection '{collection_name}' created.")
+        else:
+            collection = Collection(collection_name)
+
+        data = []
+        id_counter = 0
+        for file, text in extracted_text.items():
+            chunks = chunk_text(text)
+            embeddings = generate_embeddings(chunks)
+            for chunk, embedding in zip(chunks, embeddings):
+                data.append([id_counter, embedding, chunk])
+                id_counter += 1
+
+        # Insert data into Milvus
+        if data:
+            collection.insert(data)
+            st.success(f"Inserted {len(data)} records into Milvus collection '{collection_name}'.")
+        else:
+            st.warning("No data to insert.")
+    except Exception as e:
+        st.error(f"Failed to store data in Milvus: {e}")
 
 # Query Milvus
 def query_milvus(collection_name, query_text, top_k=5):
-    client = Milvus()
-    query_embedding = generate_embeddings([query_text])[0]
-    results = client.search(collection_name, query_embedding, top_k=top_k)
-    return results
+    try:
+        collection = Collection(collection_name)
+        if not utility.has_collection(collection_name):
+            st.error("Collection does not exist. Please process and store PDFs first.")
+            return []
+
+        query_embedding = generate_embeddings([query_text])[0]
+        results = collection.search(
+            data=[query_embedding],
+            anns_field="vector",
+            param={"metric_type": "L2", "params": {"nprobe": 10}},
+            limit=top_k
+        )
+        return results
+    except Exception as e:
+        st.error(f"Failed to query Milvus: {e}")
+        return []
 
 # Streamlit App
-st.title("PDF Text Extraction and Retrieval")
+st.title("WINDOWS 11 ERROR BOT")
 
 # Initialize Milvus
 if not initialize_milvus():
@@ -90,11 +123,10 @@ if uploaded_files:
 
     if st.button("Store PDFs in Vector Database"):
         store_in_milvus("my_rag_collection", extracted_text)
-        st.success("PDFs processed and stored in vector database.")
 
 # Query the database
 query = st.text_input("Ask a question:")
 if query and st.button("Search"):
     results = query_milvus("my_rag_collection", query)
     for result in results:
-        st.write(result['text'])
+        st.write(f"Text: {result.entity.get('text', 'N/A')} (Score: {result.distance:.4f})")
