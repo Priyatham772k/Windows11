@@ -2,7 +2,7 @@ import os
 import streamlit as st
 import PyPDF2
 import textwrap
-from pymilvus import Milvus, DataType, connections, Collection, utility
+from pymilvus import Collection, DataType, utility, connections
 import openai
 
 # Secrets
@@ -48,7 +48,10 @@ def generate_embeddings(text_chunks):
     embeddings = []
     for chunk in text_chunks:
         try:
-            response = openai.Embedding.create(input=chunk, model="text-embedding-ada-002")
+            response = openai.Embedding.create(
+                input=chunk,
+                model="text-embedding-ada-002"
+            )
             embeddings.append(response['data'][0]['embedding'])
         except Exception as e:
             st.error(f"Error generating embedding for chunk: {chunk[:50]}...: {e}")
@@ -81,8 +84,8 @@ def store_in_milvus(collection_name, extracted_text):
 
         # Insert data into Milvus
         if data:
-            collection.insert(data)
-            st.success(f"Inserted {len(data)} records into Milvus collection '{collection_name}'.")
+            insert_results = collection.insert(data)
+            st.success(f"Inserted {len(insert_results.primary_keys)} records into Milvus collection '{collection_name}'.")
         else:
             st.warning("No data to insert.")
     except Exception as e:
@@ -91,11 +94,11 @@ def store_in_milvus(collection_name, extracted_text):
 # Query Milvus
 def query_milvus(collection_name, query_text, top_k=5):
     try:
-        collection = Collection(collection_name)
         if not utility.has_collection(collection_name):
             st.error("Collection does not exist. Please process and store PDFs first.")
             return []
 
+        collection = Collection(collection_name)
         query_embedding = generate_embeddings([query_text])[0]
         results = collection.search(
             data=[query_embedding],
@@ -103,13 +106,17 @@ def query_milvus(collection_name, query_text, top_k=5):
             param={"metric_type": "L2", "params": {"nprobe": 10}},
             limit=top_k
         )
-        return results
+        if not results or len(results[0]) == 0:
+            st.warning("No results found for your query.")
+            return []
+
+        return results[0]
     except Exception as e:
         st.error(f"Failed to query Milvus: {e}")
         return []
 
 # Streamlit App
-st.title("WINDOWS 11 ERROR BOT")
+st.title("PDF Text Extraction and Retrieval")
 
 # Initialize Milvus
 if not initialize_milvus():
