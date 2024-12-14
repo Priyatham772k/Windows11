@@ -117,7 +117,7 @@ def query_milvus(collection_name, query_text, top_k=5):
         return []
 
 # Streamlit App
-st.title("PDF Text Extraction and Retrieval")
+st.title("Windows 11 error Bot")
 
 # Initialize Milvus
 if not initialize_milvus():
