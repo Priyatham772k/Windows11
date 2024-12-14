@@ -7,8 +7,8 @@ import openai
 
 # Secrets
 openai_api_key = st.secrets["OPENAI_API_KEY"]
-zilliz_cloud_uri = st.secrets["ZILLIZ_CLOUD_URI"]
-zilliz_cloud_api_key = st.secrets["ZILLIZ_CLOUD_API_KEY"]
+zilliz_cloud_uri = "https://in03-f2db10c5f456b31.serverless.gcp-us-west1.cloud.zilliz.com"
+zilliz_cloud_api_key = "98807cbae03002ff10c5a6f14d3959c6dfad9a01127f351cbd0701e45b62751522a9e8acb409eb6f4fbcf6417595000b4df67623"
 
 # Initialize Milvus
 def initialize_milvus():
