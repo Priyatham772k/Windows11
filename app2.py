@@ -2,35 +2,52 @@ import os
 import streamlit as st
 import PyPDF2
 import textwrap
-from pymilvus import Milvus, DataType
+from pymilvus import Milvus, DataType, connections
+import openai
 
+# Secrets
 openai_api_key = st.secrets["OPENAI_API_KEY"]
 zilliz_cloud_uri = st.secrets["ZILLIZ_CLOUD_URI"]
 zilliz_cloud_api_key = st.secrets["ZILLIZ_CLOUD_API_KEY"]
 
-def extract_text_from_pdfs(folder_loc):
+# Initialize Milvus
+def initialize_milvus():
+    try:
+        connections.connect(
+            alias="default",
+            uri=zilliz_cloud_uri,
+            token=zilliz_cloud_api_key
+        )
+        return True
+    except Exception as e:
+        st.error(f"Failed to connect to Milvus: {e}")
+        return False
+
+# Extract text from uploaded PDFs
+def extract_text_from_uploaded_pdfs(uploaded_files):
     extracted_text = {}
-    for file in os.listdir(folder_loc):
+    for uploaded_file in uploaded_files:
         text = ""
-        with open(file, "rb") as pdf_file:
-            reader = PyPDF2.PdfReader(pdf_file)
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-        extracted_text[file] = text
+        reader = PyPDF2.PdfReader(uploaded_file)
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+        extracted_text[uploaded_file.name] = text
     return extracted_text
 
+# Chunk text for embeddings
 def chunk_text(text, chunk_size=1000):
     return textwrap.wrap(text, chunk_size)
 
+# Generate OpenAI embeddings
 def generate_embeddings(text_chunks):
-    from openai import OpenAI
-    openai_client = OpenAI()
+    openai.api_key = openai_api_key
     embeddings = []
     for chunk in text_chunks:
-        embedding = openai_client.embeddings.create(input=chunk, model="text-embedding-ada-002")
-        embeddings.append(embedding['data'][0]['embedding'])
+        response = openai.Embedding.create(input=chunk, model="text-embedding-ada-002")
+        embeddings.append(response['data'][0]['embedding'])
     return embeddings
 
+# Store data in Milvus
 def store_in_milvus(collection_name, extracted_text):
     client = Milvus()
     if not client.has_collection(collection_name):
@@ -41,7 +58,6 @@ def store_in_milvus(collection_name, extracted_text):
                 {"name": "text", "type": DataType.VARCHAR, "max_length": 65535}
             ]
         })
-    
     data = []
     id = 0
     for file, text in extracted_text.items():
@@ -52,38 +68,33 @@ def store_in_milvus(collection_name, extracted_text):
             id += 1
     client.insert(collection_name, data)
 
+# Query Milvus
 def query_milvus(collection_name, query_text, top_k=5):
     client = Milvus()
     query_embedding = generate_embeddings([query_text])[0]
     results = client.search(collection_name, query_embedding, top_k=top_k)
     return results
 
-def load_vector_database(collection_name):
-    try:
-        client = Milvus()
-        if not client.has_collection(collection_name):
-            st.error("Collection does not exist. Please process the PDF first.")
-            return None
-        return client
-    except Exception as e:
-        st.error(f"Failed to connect to the vector database: {e}")
-        return None
-
+# Streamlit App
 st.title("PDF Text Extraction and Retrieval")
 
-# Load the vector database at the start
-collection_name = "my_rag_collection"
-client = load_vector_database(collection_name)
+# Initialize Milvus
+if not initialize_milvus():
+    st.stop()
 
-if client is not None:
-    uploaded_files = st.file_uploader("Choose PDF files", type="pdf", accept_multiple_files=True)
-    if uploaded_files is not None:
-        extracted_text = extract_text_from_pdfs("data")
-        store_in_milvus(collection_name, extracted_text)
-        st.success("PDFs processed and data stored in vector database.")
+# Upload PDFs
+uploaded_files = st.file_uploader("Upload your PDF files", type="pdf", accept_multiple_files=True)
+if uploaded_files:
+    st.write("Processing uploaded PDFs...")
+    extracted_text = extract_text_from_uploaded_pdfs(uploaded_files)
 
-    query = st.text_input("Ask a question:")
-    if query:
-        results = query_milvus(collection_name, query)
-        for result in results:
-            st.write(result['text'])
+    if st.button("Store PDFs in Vector Database"):
+        store_in_milvus("my_rag_collection", extracted_text)
+        st.success("PDFs processed and stored in vector database.")
+
+# Query the database
+query = st.text_input("Ask a question:")
+if query and st.button("Search"):
+    results = query_milvus("my_rag_collection", query)
+    for result in results:
+        st.write(result['text'])
