@@ -5,18 +5,18 @@ import textwrap
 from pymilvus import Collection, DataType, utility, connections
 import openai
 
-# Secrets
-openai_api_key = st.secrets["OPENAI_API_KEY"]
-zilliz_cloud_uri = os.environ["ZILLIZ_CLOUD_URI"] = "https://in03-f2db10c5f456b31.serverless.gcp-us-west1.cloud.zilliz.com"
-zilliz_cloud_api_key = os.environ["ZILLIZ_CLOUD_API_KEY"] = "98807cbae03002ff10c5a6f14d3959c6dfad9a01127f351cbd0701e45b62751522a9e8acb409eb6f4fbcf6417595000b4df67623"
+# Environment Variables (Ensure these are set correctly)
+os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+os.environ["ZILLIZ_CLOUD_URI"] = st.secrets["ZILLIZ_CLOUD_URI"]
+os.environ["ZILLIZ_CLOUD_API_KEY"] = st.secrets["ZILLIZ_CLOUD_API_KEY"]
 
-# Initialize Milvus
+# Initialize Milvus Connection
 def initialize_milvus():
     try:
         connections.connect(
             alias="default",
-            uri=zilliz_cloud_uri,
-            token=zilliz_cloud_api_key
+            uri=os.environ["ZILLIZ_CLOUD_URI"],
+            token=os.environ["ZILLIZ_CLOUD_API_KEY"]
         )
         st.info("Successfully connected to Milvus.")
         return True
@@ -33,7 +33,7 @@ def extract_text_from_uploaded_pdfs(uploaded_files):
             reader = PyPDF2.PdfReader(uploaded_file)
             for page in reader.pages:
                 text += page.extract_text() + "\n"
-            extracted_text[uploaded_file.name] = text
+            extracted_text[uploaded_file.name] = text.strip()
         except Exception as e:
             st.error(f"Failed to process {uploaded_file.name}: {e}")
     return extracted_text
@@ -44,7 +44,7 @@ def chunk_text(text, chunk_size=1000):
 
 # Generate OpenAI embeddings
 def generate_embeddings(text_chunks):
-    openai.api_key = openai_api_key
+    openai.api_key = os.environ["OPENAI_API_KEY"]
     embeddings = []
     for chunk in text_chunks:
         try:
@@ -60,6 +60,7 @@ def generate_embeddings(text_chunks):
 # Store data in Milvus
 def store_in_milvus(collection_name, extracted_text):
     try:
+        # Check if the collection exists, if not create it
         if not utility.has_collection(collection_name):
             schema = {
                 "fields": [
@@ -127,6 +128,7 @@ uploaded_files = st.file_uploader("Upload your PDF files", type="pdf", accept_mu
 if uploaded_files:
     st.write("Processing uploaded PDFs...")
     extracted_text = extract_text_from_uploaded_pdfs(uploaded_files)
+    st.write("Extracted Text:", extracted_text)  # Debugging: View extracted content
 
     if st.button("Store PDFs in Vector Database"):
         store_in_milvus("my_rag_collection", extracted_text)
