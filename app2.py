@@ -8,7 +8,7 @@ import openai
 # Environment Variables (Ensure these are set correctly)
 openai_api_key = st.secrets["OPENAI_API_KEY"]
 zilliz_cloud_uri = os.environ["ZILLIZ_CLOUD_URI"] = "https://in03-f2db10c5f456b31.serverless.gcp-us-west1.cloud.zilliz.com"
-zilliz_cloud_api_key = os.environ["ZILLIZ_CLOUD_API_KEY"] = "98807cbae03002ff10c5a6f14d3959c6dfad9a01127f351cbd0701e45b62751522a9e8acb409eb6f4fbcf6417595000b4df67623"
+zilliz_cloud_api_key = os.environ["ZILLIZ_CLOUD_API_KEY"] = "YOUR_API_KEY_HERE"
 
 # Initialize Milvus Connection
 def initialize_milvus():
@@ -49,8 +49,8 @@ def generate_embeddings(text_chunks):
     for chunk in text_chunks:
         try:
             response = openai.Embedding.create(
-                input=chunk,
-                model="text-embedding-ada-002"
+                model="text-embedding-ada-002",
+                input=chunk
             )
             embeddings.append(response['data'][0]['embedding'])
         except Exception as e:
@@ -65,7 +65,7 @@ def store_in_milvus(collection_name, extracted_text):
             schema = {
                 "fields": [
                     {"name": "id", "type": DataType.INT64, "is_primary": True},
-                    {"name": "vector", "type": DataType.FLOAT_VECTOR, "dim": 1536},
+                    {"name": "vector", "type": DataType.FLOAT_VECTOR, "params": {"dim": 1536}},
                     {"name": "text", "type": DataType.VARCHAR, "max_length": 65535}
                 ]
             }
