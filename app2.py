@@ -6,9 +6,9 @@ from pymilvus import Collection, DataType, utility, connections
 import openai
 
 # Environment Variables (Ensure these are set correctly)
-os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-os.environ["ZILLIZ_CLOUD_URI"] = st.secrets["ZILLIZ_CLOUD_URI"]
-os.environ["ZILLIZ_CLOUD_API_KEY"] = st.secrets["ZILLIZ_CLOUD_API_KEY"]
+openai_api_key = st.secrets["OPENAI_API_KEY"]
+zilliz_cloud_uri = os.environ["ZILLIZ_CLOUD_URI"] = "https://in03-f2db10c5f456b31.serverless.gcp-us-west1.cloud.zilliz.com"
+zilliz_cloud_api_key = os.environ["ZILLIZ_CLOUD_API_KEY"] = "98807cbae03002ff10c5a6f14d3959c6dfad9a01127f351cbd0701e45b62751522a9e8acb409eb6f4fbcf6417595000b4df67623"
 
 # Initialize Milvus Connection
 def initialize_milvus():
