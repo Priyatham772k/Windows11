@@ -4,9 +4,9 @@ import PyPDF2
 import textwrap
 from pymilvus import Milvus, DataType
 
-os.environ["OPENAI_API_KEY"] ="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"
-os.environ["ZILLIZ_CLOUD_URI"] = "https://in03-f2db10c5f456b31.serverless.gcp-us-west1.cloud.zilliz.com"
-os.environ["ZILLIZ_CLOUD_API_KEY"] = "98807cbae03002ff10c5a6f14d3959c6dfad9a01127f351cbd0701e45b62751522a9e8acb409eb6f4fbcf6417595000b4df67623"
+openai_api_key = st.secrets["OPENAI_API_KEY"]
+zilliz_cloud_uri = st.secrets["ZILLIZ_CLOUD_URI"]
+zilliz_cloud_api_key = st.secrets["ZILLIZ_CLOUD_API_KEY"]
 
 def extract_text_from_pdfs(folder_loc):
     extracted_text = {}
