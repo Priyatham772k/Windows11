@@ -49,8 +49,8 @@ def generate_embeddings(text_chunks):
     for chunk in text_chunks:
         try:
             response = openai.Embedding.create(
-                input=chunk,
-                model="text-embedding-ada-002"
+                model="text-embedding-ada-002",
+                input=chunk
             )
             embeddings.append(response['data'][0]['embedding'])
         except Exception as e:
