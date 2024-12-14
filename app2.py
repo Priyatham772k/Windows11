@@ -44,13 +44,14 @@ def chunk_text(text, chunk_size=1000):
 
 # Generate OpenAI embeddings
 def generate_embeddings(text_chunks):
+    import openai  # Ensure openai is imported here to avoid conflicts
     openai.api_key = os.environ["OPENAI_API_KEY"]
     embeddings = []
     for chunk in text_chunks:
         try:
             response = openai.Embedding.create(
-                model="text-embedding-ada-002",
-                input=chunk
+                input=chunk,
+                model="text-similarity-ada-001"  # Use older compatible model
             )
             embeddings.append(response['data'][0]['embedding'])
         except Exception as e:
